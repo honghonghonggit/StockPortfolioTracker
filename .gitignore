@@ -1,0 +1,26 @@
+﻿# --- Build Artifacts ---
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# --- IDE Settings ---
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.nbupdates/
+.nb-gradle/
+
+# --- OS Related ---
+Thumbs.db
+.DS_Store
+
+# --- User Specific ---
+*.log
+.temp/
