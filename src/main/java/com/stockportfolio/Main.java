@@ -1,6 +1,7 @@
 package com.stockportfolio;
 
 import com.stockportfolio.view.DashboardPanel;
+import com.stockportfolio.view.GoalManagementPanel;
 import com.stockportfolio.view.ProfitAnalysisPanel;
 import com.stockportfolio.view.StockManagementPanel;
 
@@ -39,6 +40,7 @@ public class Main {
             tabbedPane.addTab("  📊 대시보드  ", new DashboardPanel());
             tabbedPane.addTab("  📋 종목 관리  ", new StockManagementPanel());
             tabbedPane.addTab("  📈 수익 분석  ", new ProfitAnalysisPanel());
+            tabbedPane.addTab("  🎯 목표 수익률  ", new GoalManagementPanel());
 
             frame.setContentPane(tabbedPane);
             frame.setVisible(true);
