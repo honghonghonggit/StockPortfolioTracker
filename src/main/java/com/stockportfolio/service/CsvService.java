@@ -20,7 +20,7 @@ public class CsvService {
     private static final String DATA_DIR = "data";
     private static final String FILE_NAME = "portfolio.csv";
     private static final String GOALS_FILE_NAME = "goals.csv";
-    private static final String HEADER = "종목명,보유수량,매수가,현재가";
+    private static final String HEADER = "종목명,보유수량,매수가,현재가,통화";
     private static final String GOALS_HEADER = "종목명,목표수익률";
 
     private final Path filePath;

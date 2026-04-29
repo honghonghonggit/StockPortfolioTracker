@@ -3,6 +3,7 @@ package com.stockportfolio.view;
 import com.stockportfolio.model.Stock;
 import com.stockportfolio.service.ApiService;
 import com.stockportfolio.service.CsvService;
+import com.stockportfolio.service.ExchangeRateService;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -43,14 +44,19 @@ public class StockManagementPanel extends JPanel {
     // 서비스
     private final CsvService csvService;
     private final ApiService apiService;
+    private final ExchangeRateService exchangeRateService;
 
     // 데이터
     private final List<Stock> stockList;
+    private double usdToKrw = ExchangeRateService.getDefaultRate();
 
     // UI 컴포넌트
     private JTextField nameField;
     private JTextField priceField;
     private JTextField quantityField;
+    private JRadioButton krwRadio;
+    private JRadioButton usdRadio;
+    private JLabel priceLabel;
     private JTable table;
     private DefaultTableModel tableModel;
     private JLabel statusLabel;
@@ -58,9 +64,17 @@ public class StockManagementPanel extends JPanel {
     public StockManagementPanel() {
         this.csvService = new CsvService();
         this.apiService = new ApiService();
+        this.exchangeRateService = new ExchangeRateService();
         this.stockList = new ArrayList<>();
         loadFromCsv();
         initUI();
+        fetchExchangeRate();
+    }
+
+    private void fetchExchangeRate() {
+        exchangeRateService.fetchUsdKrw((rate, isLive) -> {
+            javax.swing.SwingUtilities.invokeLater(() -> usdToKrw = rate);
+        });
     }
 
     // ──────────────────────────────────────────────
@@ -189,6 +203,10 @@ public class StockManagementPanel extends JPanel {
         formContent.add(sectionTitle);
         formContent.add(Box.createVerticalStrut(20));
 
+        // 통화 선택 라디오 버튼
+        formContent.add(createCurrencyRadioGroup());
+        formContent.add(Box.createVerticalStrut(14));
+
         // 종목명
         nameField = createStyledTextField();
         formContent.add(createFieldGroup("종목명", nameField));
@@ -196,7 +214,8 @@ public class StockManagementPanel extends JPanel {
 
         // 매수가
         priceField = createStyledTextField();
-        formContent.add(createFieldGroup("매수가 (원)", priceField));
+        priceLabel = new JLabel("매수가 (원)");
+        formContent.add(createFieldGroupWithLabel(priceLabel, priceField));
         formContent.add(Box.createVerticalStrut(14));
 
         // 보유수량
@@ -210,6 +229,48 @@ public class StockManagementPanel extends JPanel {
 
         wrapper.add(formContent, BorderLayout.NORTH);
         return wrapper;
+    }
+
+    /**
+     * 통화 선택 라디오 버튼 그룹
+     */
+    private JPanel createCurrencyRadioGroup() {
+        JPanel group = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        group.setOpaque(false);
+        group.setAlignmentX(Component.LEFT_ALIGNMENT);
+        group.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+
+        JLabel label = new JLabel("통화  ");
+        label.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        label.setForeground(TEXT_SECONDARY);
+
+        krwRadio = new JRadioButton("₩ 원화 (KRW)");
+        usdRadio = new JRadioButton("$ 달러 (USD)");
+
+        krwRadio.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        usdRadio.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        krwRadio.setForeground(TEXT_PRIMARY);
+        usdRadio.setForeground(TEXT_PRIMARY);
+        krwRadio.setOpaque(false);
+        usdRadio.setOpaque(false);
+        krwRadio.setFocusPainted(false);
+        usdRadio.setFocusPainted(false);
+        krwRadio.setSelected(true);
+
+        ButtonGroup bg = new ButtonGroup();
+        bg.add(krwRadio);
+        bg.add(usdRadio);
+
+        // 통화 변경 시 매수가 라벨 업데이트
+        krwRadio.addActionListener(e -> { if (priceLabel != null) priceLabel.setText("매수가 (원)"); });
+        usdRadio.addActionListener(e -> { if (priceLabel != null) priceLabel.setText("매수가 ($)"); });
+
+        group.add(label);
+        group.add(krwRadio);
+        group.add(Box.createHorizontalStrut(10));
+        group.add(usdRadio);
+
+        return group;
     }
 
     /**
@@ -233,6 +294,27 @@ public class StockManagementPanel extends JPanel {
         group.add(Box.createVerticalStrut(6));
         group.add(textField);
 
+        return group;
+    }
+
+    /**
+     * 라벨 객체를 직접 전달받는 필드 그룹 (동적 라벨 변경용)
+     */
+    private JPanel createFieldGroupWithLabel(JLabel label, JTextField textField) {
+        JPanel group = new JPanel();
+        group.setLayout(new BoxLayout(group, BoxLayout.Y_AXIS));
+        group.setOpaque(false);
+        group.setAlignmentX(Component.LEFT_ALIGNMENT);
+        group.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+
+        label.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        label.setForeground(TEXT_SECONDARY);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        textField.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        group.add(label);
+        group.add(Box.createVerticalStrut(6));
+        group.add(textField);
         return group;
     }
 
@@ -431,14 +513,27 @@ public class StockManagementPanel extends JPanel {
     private void refreshTable() {
         tableModel.setRowCount(0);
         for (Stock s : stockList) {
-            String currentPriceStr = (s.getCurrentPrice() == s.getBuyPrice())
-                    ? "조회 전" : moneyFormat.format(s.getCurrentPrice()) + " 원";
+            String currSymbol = s.isUsd() ? "$" : "";
+            String currSuffix = s.isUsd() ? "" : " 원";
+
+            String buyPriceStr = currSymbol + moneyFormat.format(s.getBuyPrice()) + currSuffix;
+
+            String currentPriceStr;
+            if (s.getCurrentPrice() == s.getBuyPrice()) {
+                currentPriceStr = "조회 전";
+            } else {
+                currentPriceStr = currSymbol + moneyFormat.format(s.getCurrentPrice()) + currSuffix;
+            }
+
             double rate = s.getProfitRate();
             String rateStr = (s.getCurrentPrice() == s.getBuyPrice())
                     ? "-" : String.format("%+.2f%%", rate);
+
+            String currencyTag = s.isUsd() ? " [USD]" : "";
+
             tableModel.addRow(new Object[]{
-                    s.getName(),
-                    moneyFormat.format(s.getBuyPrice()) + " 원",
+                    s.getName() + currencyTag,
+                    buyPriceStr,
                     currentPriceStr,
                     rateStr,
                     moneyFormat.format(s.getQuantity()) + " 주"
@@ -546,10 +641,38 @@ public class StockManagementPanel extends JPanel {
         }
 
         stockList.add(stock);
+
+        // USD 종목이면 Alpha Vantage API로 현재가 자동 조회
+        if (stock.isUsd()) {
+            setStatus("🔄 " + stock.getName() + " 현재가 조회 중...", ACCENT_BLUE);
+            apiService.fetchCurrentPrice(stock.getName(), stock.getName(), new ApiService.ApiCallback() {
+                @Override
+                public void onSuccess(String stockName, double currentPrice) {
+                    javax.swing.SwingUtilities.invokeLater(() -> {
+                        stock.setCurrentPrice(currentPrice);
+                        refreshTable();
+                        saveToCsv();
+                        setStatus("✓ " + stockName + " 추가 완료 (현재가: $" + String.format("%.2f", currentPrice) + ")", ACCENT_GREEN);
+                    });
+                }
+
+                @Override
+                public void onFailure(String stockName, String errorMessage) {
+                    javax.swing.SwingUtilities.invokeLater(() -> {
+                        refreshTable();
+                        saveToCsv();
+                        setStatus("⚠ " + stockName + " 추가됨 (현재가 조회 실패: " + errorMessage + ")", ACCENT_AMBER);
+                    });
+                }
+            });
+        }
+
         refreshTable();
         saveToCsv();
         clearFields();
-        setStatus("✓ 종목 추가됨: " + stock.getName(), ACCENT_GREEN);
+        if (!stock.isUsd()) {
+            setStatus("✓ 종목 추가됨: " + stock.getName(), ACCENT_GREEN);
+        }
     }
 
     /**
@@ -569,6 +692,7 @@ public class StockManagementPanel extends JPanel {
         existing.setName(stock.getName());
         existing.setBuyPrice(stock.getBuyPrice());
         existing.setQuantity(stock.getQuantity());
+        existing.setCurrency(stock.getCurrency());
 
         refreshTable();
         saveToCsv();
@@ -638,7 +762,10 @@ public class StockManagementPanel extends JPanel {
             return null;
         }
 
-        return new Stock(name, quantity, buyPrice);
+        String currency = usdRadio.isSelected() ? "USD" : "KRW";
+        Stock stock = new Stock(name, quantity, buyPrice);
+        stock.setCurrency(currency);
+        return stock;
     }
 
     /**
@@ -648,6 +775,8 @@ public class StockManagementPanel extends JPanel {
         nameField.setText("");
         priceField.setText("");
         quantityField.setText("");
+        krwRadio.setSelected(true);
+        if (priceLabel != null) priceLabel.setText("매수가 (원)");
         nameField.requestFocus();
     }
 

@@ -206,8 +206,8 @@ public class DashboardPanel extends JPanel {
         panel.setOpaque(false);
         panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        double totalAsset = stockList.stream().mapToDouble(Stock::getEvalAmount).sum();
-        double totalBuy = stockList.stream().mapToDouble(Stock::getBuyAmount).sum();
+        double totalAsset = stockList.stream().mapToDouble(s -> s.getEvalAmountKrw(usdToKrw)).sum();
+        double totalBuy = stockList.stream().mapToDouble(s -> s.getBuyAmountKrw(usdToKrw)).sum();
         double totalProfit = totalAsset - totalBuy;
         double totalRate = (totalBuy == 0) ? 0 : (totalProfit / totalBuy) * 100;
 
@@ -240,8 +240,8 @@ public class DashboardPanel extends JPanel {
     }
 
     private void updateSummaryCards() {
-        double totalAsset = stockList.stream().mapToDouble(Stock::getEvalAmount).sum();
-        double totalBuy = stockList.stream().mapToDouble(Stock::getBuyAmount).sum();
+        double totalAsset = stockList.stream().mapToDouble(s -> s.getEvalAmountKrw(usdToKrw)).sum();
+        double totalBuy = stockList.stream().mapToDouble(s -> s.getBuyAmountKrw(usdToKrw)).sum();
         double totalProfit = totalAsset - totalBuy;
         double totalRate = (totalBuy == 0) ? 0 : (totalProfit / totalBuy) * 100;
         updateSummaryValues(totalAsset, totalProfit, totalRate);
@@ -351,12 +351,17 @@ public class DashboardPanel extends JPanel {
             return;
         }
         for (Stock s : stockList) {
+            String currTag = s.isUsd() ? " [USD]" : "";
+            String sym = s.isUsd() ? "$" : "";
+            String sfx = s.isUsd() ? "" : "";
+            String evalStr = moneyFormat.format(s.getEvalAmountKrw(usdToKrw)) + " 원";
+
             tableModel.addRow(new Object[]{
-                    s.getName(),
-                    moneyFormat.format(s.getBuyPrice()),
-                    moneyFormat.format(s.getCurrentPrice()),
+                    s.getName() + currTag,
+                    sym + moneyFormat.format(s.getBuyPrice()),
+                    sym + moneyFormat.format(s.getCurrentPrice()),
                     rateFormat.format(s.getProfitRate()) + "%",
-                    moneyFormat.format(s.getEvalAmount()) + " 원"
+                    evalStr
             });
         }
     }
