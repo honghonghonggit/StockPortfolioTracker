@@ -25,6 +25,13 @@
             <artifactId>jfreechart</artifactId>
             <version>1.5.3</version>
         </dependency>
+
+        <!-- JSON 파싱 (Alpha Vantage API 응답 처리) -->
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20231013</version>
+        </dependency>
     </dependencies>
 
     <build>

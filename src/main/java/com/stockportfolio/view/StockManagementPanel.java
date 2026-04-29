@@ -1,6 +1,7 @@
 package com.stockportfolio.view;
 
 import com.stockportfolio.model.Stock;
+import com.stockportfolio.service.ApiService;
 import com.stockportfolio.service.CsvService;
 
 import javax.swing.*;
@@ -41,6 +42,7 @@ public class StockManagementPanel extends JPanel {
 
     // 서비스
     private final CsvService csvService;
+    private final ApiService apiService;
 
     // 데이터
     private final List<Stock> stockList;
@@ -55,6 +57,7 @@ public class StockManagementPanel extends JPanel {
 
     public StockManagementPanel() {
         this.csvService = new CsvService();
+        this.apiService = new ApiService();
         this.stockList = new ArrayList<>();
         loadFromCsv();
         initUI();
@@ -282,22 +285,25 @@ public class StockManagementPanel extends JPanel {
      * 버튼 그룹 (추가 / 수정 / 삭제)
      */
     private JPanel createButtonGroup() {
-        JPanel btnPanel = new JPanel(new GridLayout(1, 3, 10, 0));
+        JPanel btnPanel = new JPanel(new GridLayout(2, 2, 10, 10));
         btnPanel.setOpaque(false);
         btnPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        btnPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        btnPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 94));
 
         JButton addBtn = createStyledButton("추가", ACCENT_BLUE);
         JButton editBtn = createStyledButton("수정", ACCENT_AMBER);
         JButton deleteBtn = createStyledButton("삭제", ACCENT_RED);
+        JButton fetchBtn = createStyledButton("📡 현재가 조회", ACCENT_GREEN);
 
         addBtn.addActionListener(e -> handleAdd());
         editBtn.addActionListener(e -> handleEdit());
         deleteBtn.addActionListener(e -> handleDelete());
+        fetchBtn.addActionListener(e -> handleFetchPrice(fetchBtn));
 
         btnPanel.add(addBtn);
         btnPanel.add(editBtn);
         btnPanel.add(deleteBtn);
+        btnPanel.add(fetchBtn);
 
         return btnPanel;
     }
@@ -370,7 +376,7 @@ public class StockManagementPanel extends JPanel {
         wrapper.add(sectionTitle, BorderLayout.NORTH);
 
         // 테이블 구성
-        String[] columns = {"종목명", "매수가", "보유수량"};
+        String[] columns = {"종목명", "매수가", "현재가", "수익률", "보유수량"};
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -425,9 +431,16 @@ public class StockManagementPanel extends JPanel {
     private void refreshTable() {
         tableModel.setRowCount(0);
         for (Stock s : stockList) {
+            String currentPriceStr = (s.getCurrentPrice() == s.getBuyPrice())
+                    ? "조회 전" : moneyFormat.format(s.getCurrentPrice()) + " 원";
+            double rate = s.getProfitRate();
+            String rateStr = (s.getCurrentPrice() == s.getBuyPrice())
+                    ? "-" : String.format("%+.2f%%", rate);
             tableModel.addRow(new Object[]{
                     s.getName(),
                     moneyFormat.format(s.getBuyPrice()) + " 원",
+                    currentPriceStr,
+                    rateStr,
                     moneyFormat.format(s.getQuantity()) + " 주"
             });
         }
@@ -488,9 +501,29 @@ public class StockManagementPanel extends JPanel {
             }
         };
 
+        // 수익률 컬럼 색상 렌더러
+        DefaultTableCellRenderer rateRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable tbl, Object value,
+                                                           boolean isSelected, boolean hasFocus,
+                                                           int row, int column) {
+                super.getTableCellRendererComponent(tbl, value, isSelected, hasFocus, row, column);
+                setHorizontalAlignment(SwingConstants.RIGHT);
+                String text = (value != null) ? value.toString() : "";
+                if (text.startsWith("+")) setForeground(ACCENT_GREEN);
+                else if (text.startsWith("-") && !text.equals("-")) setForeground(ACCENT_RED);
+                else setForeground(TEXT_SECONDARY);
+                setBackground(isSelected ? new Color(70, 70, 110) : BG_CARD);
+                setBorder(new EmptyBorder(0, 8, 0, 12));
+                return this;
+            }
+        };
+
         table.getColumnModel().getColumn(0).setCellRenderer(leftRenderer);
         table.getColumnModel().getColumn(1).setCellRenderer(rightRenderer);
         table.getColumnModel().getColumn(2).setCellRenderer(rightRenderer);
+        table.getColumnModel().getColumn(3).setCellRenderer(rateRenderer);
+        table.getColumnModel().getColumn(4).setCellRenderer(rightRenderer);
     }
 
     // ──────────────────────────────────────────────
@@ -616,6 +649,75 @@ public class StockManagementPanel extends JPanel {
         priceField.setText("");
         quantityField.setText("");
         nameField.requestFocus();
+    }
+
+    // ──────────────────────────────────────────────
+    // Alpha Vantage 현재가 조회
+    // ──────────────────────────────────────────────
+
+    /**
+     * 현재가 조회 버튼 핸들러
+     * - 종목명을 심볼로 변환 후 현재가를 비동기 조회
+     * - 로딩 표시 + 에러 메시지 처리
+     */
+    private void handleFetchPrice(JButton fetchBtn) {
+        if (stockList.isEmpty()) {
+            setStatus("⚠ 등록된 종목이 없습니다", ACCENT_AMBER);
+            return;
+        }
+
+        // 로딩 상태 표시
+        fetchBtn.setEnabled(false);
+        fetchBtn.setText("⏳ 조회 중...");
+        setStatus("🔄 현재가를 조회하고 있습니다... (" + stockList.size() + "개 종목)", ACCENT_BLUE);
+
+        final int totalCount = stockList.size();
+        final int[] completedCount = {0};
+        final int[] successCount = {0};
+        final int[] failCount = {0};
+
+        for (Stock stock : stockList) {
+            String symbol = stock.getName(); // 종목명을 심볼로 사용
+
+            apiService.fetchCurrentPrice(symbol, stock.getName(), new ApiService.ApiCallback() {
+                @Override
+                public void onSuccess(String stockName, double currentPrice) {
+                    javax.swing.SwingUtilities.invokeLater(() -> {
+                        stock.setCurrentPrice(currentPrice);
+                        successCount[0]++;
+                        completedCount[0]++;
+                        checkComplete();
+                    });
+                }
+
+                @Override
+                public void onFailure(String stockName, String errorMessage) {
+                    javax.swing.SwingUtilities.invokeLater(() -> {
+                        System.err.println("[" + stockName + "] 조회 실패: " + errorMessage);
+                        failCount[0]++;
+                        completedCount[0]++;
+                        checkComplete();
+                    });
+                }
+
+                private void checkComplete() {
+                    if (completedCount[0] >= totalCount) {
+                        refreshTable();
+                        saveToCsv();
+                        fetchBtn.setEnabled(true);
+                        fetchBtn.setText("📡 현재가 조회");
+
+                        if (failCount[0] == 0) {
+                            setStatus("✓ 전체 " + successCount[0] + "개 종목 현재가 조회 완료", ACCENT_GREEN);
+                        } else if (successCount[0] == 0) {
+                            setStatus("✗ 전체 조회 실패 (API 제한 또는 네트워크 오류)", ACCENT_RED);
+                        } else {
+                            setStatus("⚠ " + successCount[0] + "개 성공, " + failCount[0] + "개 실패", ACCENT_AMBER);
+                        }
+                    }
+                }
+            });
+        }
     }
 
     /**
