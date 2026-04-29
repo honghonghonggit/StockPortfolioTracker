@@ -1,6 +1,8 @@
 package com.stockportfolio.view;
 
 import com.stockportfolio.model.Stock;
+import com.stockportfolio.service.CsvService;
+import com.stockportfolio.service.ExchangeRateService;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
@@ -13,15 +15,17 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
+import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 메인 대시보드 패널
- * - 상단: 총자산, 총수익금, 전체수익률 요약 카드
+ * - 상단: 환율 정보 + 총자산, 총수익금, 전체수익률 요약 카드
  * - 하단 왼쪽: 보유종목 테이블
  * - 하단 오른쪽: 종목별 비중 파이차트
+ * - CsvService 연동으로 실시간 데이터 반영
  */
 public class DashboardPanel extends JPanel {
 
@@ -39,51 +43,158 @@ public class DashboardPanel extends JPanel {
 
     // 파이 차트 색상 팔레트
     private static final Color[] PIE_COLORS = {
-            new Color(100, 149, 237),  // 코발트 블루
-            new Color(80, 200, 120),   // 에메랄드
-            new Color(240, 180, 60),   // 골드
-            new Color(160, 120, 240),  // 퍼플
-            new Color(240, 100, 100),  // 코랄
-            new Color(60, 200, 200),   // 틸
+            new Color(100, 149, 237),
+            new Color(80, 200, 120),
+            new Color(240, 180, 60),
+            new Color(160, 120, 240),
+            new Color(240, 100, 100),
+            new Color(60, 200, 200),
     };
 
     private final DecimalFormat moneyFormat = new DecimalFormat("#,##0");
     private final DecimalFormat rateFormat = new DecimalFormat("+#,##0.00;-#,##0.00");
 
+    // 서비스
+    private final CsvService csvService;
+    private final ExchangeRateService exchangeRateService;
+
+    // 데이터
     private List<Stock> stockList;
+    private double usdToKrw = ExchangeRateService.getDefaultRate();
+    private boolean isLiveRate = false;
+
+    // 동적 업데이트용 UI 참조
+    private JPanel summaryCardsPanel;
+    private JPanel tableWrapper;
+    private JPanel chartWrapper;
+    private JLabel exchangeRateLabel;
+    private DefaultTableModel tableModel;
+    private DefaultPieDataset pieDataset;
+    private JFreeChart pieChart;
+
+    // 요약 카드 값 라벨 (동적 갱신용)
+    private JLabel totalAssetValue;
+    private JLabel totalProfitValue;
+    private JLabel totalRateValue;
 
     public DashboardPanel() {
-        this.stockList = createDummyData();
+        this.csvService = new CsvService();
+        this.exchangeRateService = new ExchangeRateService();
+        this.stockList = new ArrayList<>();
+        loadFromCsv();
         initUI();
+        fetchExchangeRate();
     }
 
     /**
-     * 더미 데이터 생성
+     * CSV에서 종목 데이터 로드
      */
-    private List<Stock> createDummyData() {
-        List<Stock> list = new ArrayList<>();
-        list.add(new Stock("삼성전자", 50, 65000, 72000));
-        list.add(new Stock("SK하이닉스", 20, 120000, 145000));
-        list.add(new Stock("NAVER", 10, 210000, 195000));
-        list.add(new Stock("카카오", 30, 55000, 48000));
-        list.add(new Stock("LG에너지솔루션", 5, 420000, 460000));
-        list.add(new Stock("현대차", 15, 185000, 210000));
-        return list;
+    private void loadFromCsv() {
+        try {
+            stockList.clear();
+            stockList.addAll(csvService.load());
+        } catch (IOException e) {
+            System.err.println("대시보드 CSV 로드 실패: " + e.getMessage());
+        }
     }
 
     /**
-     * UI 초기화
+     * 환율 비동기 조회
      */
+    private void fetchExchangeRate() {
+        exchangeRateService.fetchUsdKrw((rate, isLive) -> {
+            SwingUtilities.invokeLater(() -> {
+                usdToKrw = rate;
+                isLiveRate = isLive;
+                updateExchangeRateLabel();
+                updateSummaryCards();
+            });
+        });
+    }
+
+    /**
+     * 외부에서 호출 가능한 전체 데이터 새로고침
+     * (종목 관리에서 추가/수정/삭제 시 호출)
+     */
+    public void refreshData() {
+        loadFromCsv();
+        updateSummaryCards();
+        updateTable();
+        updatePieChart();
+    }
+
+    // ──────────────────────────────────────────────
+    // UI 초기화
+    // ──────────────────────────────────────────────
+
     private void initUI() {
         setLayout(new BorderLayout(0, 16));
         setBackground(BG_MAIN);
         setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        // 상단 요약 카드 영역
-        add(createSummaryCardsPanel(), BorderLayout.NORTH);
+        // 상단: 환율 바 + 요약 카드
+        JPanel northPanel = new JPanel();
+        northPanel.setLayout(new BoxLayout(northPanel, BoxLayout.Y_AXIS));
+        northPanel.setOpaque(false);
+
+        northPanel.add(createExchangeRateBar());
+        northPanel.add(Box.createVerticalStrut(12));
+        summaryCardsPanel = createSummaryCardsPanel();
+        northPanel.add(summaryCardsPanel);
+
+        add(northPanel, BorderLayout.NORTH);
 
         // 하단 컨텐츠 영역 (테이블 + 차트)
         add(createContentPanel(), BorderLayout.CENTER);
+    }
+
+    // ──────────────────────────────────────────────
+    // 환율 정보 바
+    // ──────────────────────────────────────────────
+
+    private JPanel createExchangeRateBar() {
+        JPanel bar = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(35, 35, 55));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                g2.dispose();
+            }
+        };
+        bar.setOpaque(false);
+        bar.setBorder(new EmptyBorder(10, 16, 10, 16));
+        bar.setPreferredSize(new Dimension(0, 42));
+        bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        bar.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel icon = new JLabel("💱 USD/KRW 환율  ");
+        icon.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        icon.setForeground(TEXT_SECONDARY);
+        bar.add(icon, BorderLayout.WEST);
+
+        exchangeRateLabel = new JLabel("조회 중...");
+        exchangeRateLabel.setFont(new Font("맑은 고딕", Font.BOLD, 13));
+        exchangeRateLabel.setForeground(ACCENT_BLUE);
+        exchangeRateLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        bar.add(exchangeRateLabel, BorderLayout.EAST);
+
+        return bar;
+    }
+
+    private void updateExchangeRateLabel() {
+        if (exchangeRateLabel != null) {
+            String rateText = moneyFormat.format(usdToKrw) + " 원";
+            if (isLiveRate) {
+                exchangeRateLabel.setText("₩ " + rateText + "  (실시간)");
+                exchangeRateLabel.setForeground(ACCENT_GREEN);
+            } else {
+                exchangeRateLabel.setText("₩ " + rateText + "  (기본값)");
+                exchangeRateLabel.setForeground(new Color(240, 180, 60));
+            }
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -93,40 +204,63 @@ public class DashboardPanel extends JPanel {
     private JPanel createSummaryCardsPanel() {
         JPanel panel = new JPanel(new GridLayout(1, 3, 16, 0));
         panel.setOpaque(false);
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         double totalAsset = stockList.stream().mapToDouble(Stock::getEvalAmount).sum();
         double totalBuy = stockList.stream().mapToDouble(Stock::getBuyAmount).sum();
         double totalProfit = totalAsset - totalBuy;
         double totalRate = (totalBuy == 0) ? 0 : (totalProfit / totalBuy) * 100;
 
-        panel.add(createCard("총 자산", moneyFormat.format(totalAsset) + " 원", ACCENT_BLUE));
-        panel.add(createCard("총 수익금", moneyFormat.format(totalProfit) + " 원",
-                totalProfit >= 0 ? ACCENT_GREEN : ACCENT_RED));
-        panel.add(createCard("전체 수익률", rateFormat.format(totalRate) + " %",
-                totalRate >= 0 ? ACCENT_GREEN : ACCENT_RED));
+        // 카드 생성 (값 라벨 참조 저장)
+        totalAssetValue = new JLabel();
+        totalProfitValue = new JLabel();
+        totalRateValue = new JLabel();
+
+        panel.add(createCard("총 자산", totalAssetValue, ACCENT_BLUE));
+        panel.add(createCard("총 수익금", totalProfitValue, totalProfit >= 0 ? ACCENT_GREEN : ACCENT_RED));
+        panel.add(createCard("전체 수익률", totalRateValue, totalRate >= 0 ? ACCENT_GREEN : ACCENT_RED));
+
+        updateSummaryValues(totalAsset, totalProfit, totalRate);
 
         return panel;
+    }
+
+    private void updateSummaryValues(double totalAsset, double totalProfit, double totalRate) {
+        if (totalAssetValue != null) {
+            totalAssetValue.setText(moneyFormat.format(totalAsset) + " 원");
+        }
+        if (totalProfitValue != null) {
+            totalProfitValue.setText(moneyFormat.format(totalProfit) + " 원");
+            totalProfitValue.setForeground(TEXT_PRIMARY);
+        }
+        if (totalRateValue != null) {
+            totalRateValue.setText(rateFormat.format(totalRate) + " %");
+            totalRateValue.setForeground(TEXT_PRIMARY);
+        }
+    }
+
+    private void updateSummaryCards() {
+        double totalAsset = stockList.stream().mapToDouble(Stock::getEvalAmount).sum();
+        double totalBuy = stockList.stream().mapToDouble(Stock::getBuyAmount).sum();
+        double totalProfit = totalAsset - totalBuy;
+        double totalRate = (totalBuy == 0) ? 0 : (totalProfit / totalBuy) * 100;
+        updateSummaryValues(totalAsset, totalProfit, totalRate);
     }
 
     /**
      * 요약 카드 생성
      */
-    private JPanel createCard(String title, String value, Color accentColor) {
+    private JPanel createCard(String title, JLabel valueLabel, Color accentColor) {
         JPanel card = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                // 카드 배경 (둥근 모서리)
                 g2.setColor(BG_CARD);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
-
-                // 왼쪽 악센트 바
                 g2.setColor(accentColor);
                 g2.fillRoundRect(0, 0, 5, getHeight(), 4, 4);
-
                 g2.dispose();
             }
         };
@@ -140,7 +274,6 @@ public class DashboardPanel extends JPanel {
         titleLabel.setForeground(TEXT_SECONDARY);
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel valueLabel = new JLabel(value);
         valueLabel.setFont(new Font("맑은 고딕", Font.BOLD, 24));
         valueLabel.setForeground(TEXT_PRIMARY);
         valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -171,7 +304,7 @@ public class DashboardPanel extends JPanel {
     // ──────────────────────────────────────────────
 
     private JPanel createTablePanel() {
-        JPanel wrapper = new JPanel(new BorderLayout()) {
+        tableWrapper = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
@@ -182,27 +315,43 @@ public class DashboardPanel extends JPanel {
                 g2.dispose();
             }
         };
-        wrapper.setOpaque(false);
-        wrapper.setBorder(new EmptyBorder(16, 16, 16, 16));
+        tableWrapper.setOpaque(false);
+        tableWrapper.setBorder(new EmptyBorder(16, 16, 16, 16));
 
-        // 섹션 제목
         JLabel sectionTitle = new JLabel("  보유 종목");
         sectionTitle.setFont(new Font("맑은 고딕", Font.BOLD, 15));
         sectionTitle.setForeground(TEXT_PRIMARY);
         sectionTitle.setBorder(new EmptyBorder(0, 0, 12, 0));
-        wrapper.add(sectionTitle, BorderLayout.NORTH);
+        tableWrapper.add(sectionTitle, BorderLayout.NORTH);
 
-        // 테이블 데이터 구성
         String[] columns = {"종목명", "매수가", "현재가", "수익률", "평가금액"};
-        DefaultTableModel model = new DefaultTableModel(columns, 0) {
+        tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return false; // 편집 불가
+                return false;
             }
         };
 
+        populateTableData();
+
+        JTable table = new JTable(tableModel);
+        styleTable(table);
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.getViewport().setBackground(BG_CARD);
+        tableWrapper.add(scrollPane, BorderLayout.CENTER);
+
+        return tableWrapper;
+    }
+
+    private void populateTableData() {
+        tableModel.setRowCount(0);
+        if (stockList.isEmpty()) {
+            return;
+        }
         for (Stock s : stockList) {
-            model.addRow(new Object[]{
+            tableModel.addRow(new Object[]{
                     s.getName(),
                     moneyFormat.format(s.getBuyPrice()),
                     moneyFormat.format(s.getCurrentPrice()),
@@ -210,16 +359,10 @@ public class DashboardPanel extends JPanel {
                     moneyFormat.format(s.getEvalAmount()) + " 원"
             });
         }
+    }
 
-        JTable table = new JTable(model);
-        styleTable(table);
-
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        scrollPane.getViewport().setBackground(BG_CARD);
-        wrapper.add(scrollPane, BorderLayout.CENTER);
-
-        return wrapper;
+    private void updateTable() {
+        populateTableData();
     }
 
     /**
@@ -238,7 +381,6 @@ public class DashboardPanel extends JPanel {
         table.setIntercellSpacing(new Dimension(0, 1));
         table.setFillsViewportHeight(true);
 
-        // 헤더 스타일
         JTableHeader header = table.getTableHeader();
         header.setFont(new Font("맑은 고딕", Font.BOLD, 13));
         header.setBackground(BG_TABLE);
@@ -256,7 +398,6 @@ public class DashboardPanel extends JPanel {
                         isSelected, hasFocus, row, column);
                 setHorizontalAlignment(SwingConstants.RIGHT);
 
-                // 수익률 컬럼 색상 처리
                 if (column == 3 && value != null) {
                     String v = value.toString();
                     if (v.startsWith("+")) {
@@ -276,7 +417,6 @@ public class DashboardPanel extends JPanel {
             }
         };
 
-        // 종목명은 왼쪽 정렬
         DefaultTableCellRenderer leftRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
@@ -303,7 +443,7 @@ public class DashboardPanel extends JPanel {
     // ──────────────────────────────────────────────
 
     private JPanel createChartPanel() {
-        JPanel wrapper = new JPanel(new BorderLayout()) {
+        chartWrapper = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
@@ -314,56 +454,59 @@ public class DashboardPanel extends JPanel {
                 g2.dispose();
             }
         };
-        wrapper.setOpaque(false);
-        wrapper.setBorder(new EmptyBorder(16, 16, 16, 16));
+        chartWrapper.setOpaque(false);
+        chartWrapper.setBorder(new EmptyBorder(16, 16, 16, 16));
 
-        // 섹션 제목
         JLabel sectionTitle = new JLabel("  종목별 비중");
         sectionTitle.setFont(new Font("맑은 고딕", Font.BOLD, 15));
         sectionTitle.setForeground(TEXT_PRIMARY);
         sectionTitle.setBorder(new EmptyBorder(0, 0, 12, 0));
-        wrapper.add(sectionTitle, BorderLayout.NORTH);
+        chartWrapper.add(sectionTitle, BorderLayout.NORTH);
 
-        // 파이차트 데이터
-        DefaultPieDataset dataset = new DefaultPieDataset();
-        for (Stock s : stockList) {
-            dataset.setValue(s.getName(), s.getEvalAmount());
-        }
+        pieDataset = new DefaultPieDataset();
+        populatePieData();
 
-        JFreeChart chart = ChartFactory.createPieChart(
-                null,       // 제목 (별도 라벨 사용)
-                dataset,
-                false,      // 범례
-                true,       // 툴팁
-                false       // URL
-        );
+        pieChart = ChartFactory.createPieChart(null, pieDataset, false, true, false);
+        pieChart.setBackgroundPaint(BG_CARD);
 
-        // 차트 스타일링
-        chart.setBackgroundPaint(BG_CARD);
+        stylePiePlot();
 
-        PiePlot plot = (PiePlot) chart.getPlot();
-        plot.setBackgroundPaint(BG_CARD);
-        plot.setOutlinePaint(null);
-        plot.setShadowPaint(null);
-        plot.setLabelFont(new Font("맑은 고딕", Font.PLAIN, 11));
-        plot.setLabelPaint(TEXT_PRIMARY); // 라벨 텍스트 색상을 밝게
-        plot.setLabelBackgroundPaint(new Color(50, 50, 70, 200));
-        plot.setLabelOutlinePaint(null);
-        plot.setLabelShadowPaint(null);
-        plot.setLabelLinkPaint(TEXT_SECONDARY); // 연결선 색상
-
-        // 각 종목별 색상 지정
-        for (int i = 0; i < stockList.size(); i++) {
-            plot.setSectionPaint(stockList.get(i).getName(), PIE_COLORS[i % PIE_COLORS.length]);
-        }
-
-        ChartPanel chartPanel = new ChartPanel(chart);
+        ChartPanel chartPanel = new ChartPanel(pieChart);
         chartPanel.setOpaque(false);
         chartPanel.setBorder(BorderFactory.createEmptyBorder());
         chartPanel.setMouseWheelEnabled(false);
 
-        wrapper.add(chartPanel, BorderLayout.CENTER);
+        chartWrapper.add(chartPanel, BorderLayout.CENTER);
 
-        return wrapper;
+        return chartWrapper;
+    }
+
+    private void populatePieData() {
+        pieDataset.clear();
+        for (Stock s : stockList) {
+            pieDataset.setValue(s.getName(), s.getEvalAmount());
+        }
+    }
+
+    private void stylePiePlot() {
+        PiePlot plot = (PiePlot) pieChart.getPlot();
+        plot.setBackgroundPaint(BG_CARD);
+        plot.setOutlinePaint(null);
+        plot.setShadowPaint(null);
+        plot.setLabelFont(new Font("맑은 고딕", Font.PLAIN, 11));
+        plot.setLabelPaint(TEXT_PRIMARY);
+        plot.setLabelBackgroundPaint(new Color(50, 50, 70, 200));
+        plot.setLabelOutlinePaint(null);
+        plot.setLabelShadowPaint(null);
+        plot.setLabelLinkPaint(TEXT_SECONDARY);
+
+        for (int i = 0; i < stockList.size(); i++) {
+            plot.setSectionPaint(stockList.get(i).getName(), PIE_COLORS[i % PIE_COLORS.length]);
+        }
+    }
+
+    private void updatePieChart() {
+        populatePieData();
+        stylePiePlot();
     }
 }

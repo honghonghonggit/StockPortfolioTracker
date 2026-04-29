@@ -37,10 +37,18 @@ public class Main {
 
             // 탭 패널 구성
             JTabbedPane tabbedPane = createStyledTabbedPane();
-            tabbedPane.addTab("  📊 대시보드  ", new DashboardPanel());
+            DashboardPanel dashboardPanel = new DashboardPanel();
+            tabbedPane.addTab("  📊 대시보드  ", dashboardPanel);
             tabbedPane.addTab("  📋 종목 관리  ", new StockManagementPanel());
             tabbedPane.addTab("  📈 수익 분석  ", new ProfitAnalysisPanel());
             tabbedPane.addTab("  🎯 목표 수익률  ", new GoalManagementPanel());
+
+            // 대시보드 탭으로 전환 시 자동 데이터 갱신
+            tabbedPane.addChangeListener(e -> {
+                if (tabbedPane.getSelectedIndex() == 0) {
+                    dashboardPanel.refreshData();
+                }
+            });
 
             frame.setContentPane(tabbedPane);
             frame.setVisible(true);
