@@ -16,7 +16,17 @@ import java.nio.charset.StandardCharsets;
 public class ApiService {
 
     private static final String BASE_URL = "https://www.alphavantage.co/query";
-    private static final String API_KEY = "3OOTWU9BZN95UOK1";
+    private static String API_KEY = "";
+
+    static {
+        java.util.Properties prop = new java.util.Properties();
+        try (java.io.FileInputStream input = new java.io.FileInputStream("config.properties")) {
+            prop.load(input);
+            API_KEY = prop.getProperty("api.key");
+        } catch (java.io.IOException ex) {
+            System.err.println("config.properties 파일을 읽는 중 오류가 발생했습니다: " + ex.getMessage());
+        }
+    }
 
     /**
      * API 조회 결과 콜백 인터페이스

@@ -24,3 +24,6 @@ Thumbs.db
 # --- User Specific ---
 *.log
 .temp/
+
+#---key---
+config.properties
