@@ -20,11 +20,11 @@ public class ApiService {
 
     static {
         java.util.Properties prop = new java.util.Properties();
-        try (java.io.FileInputStream input = new java.io.FileInputStream("config.properties")) {
+        try (java.io.FileInputStream input = new java.io.FileInputStream(".env")) {
             prop.load(input);
             API_KEY = prop.getProperty("api.key");
         } catch (java.io.IOException ex) {
-            System.err.println("config.properties 파일을 읽는 중 오류가 발생했습니다: " + ex.getMessage());
+            System.err.println(".env 파일을 읽는 중 오류가 발생했습니다: " + ex.getMessage());
         }
     }
 

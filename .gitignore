@@ -1,4 +1,4 @@
-﻿# --- Build Artifacts ---
+# --- Build Artifacts ---
 target/
 *.class
 *.jar
@@ -26,4 +26,4 @@ Thumbs.db
 .temp/
 
 #---key---
-config.properties
+.env
