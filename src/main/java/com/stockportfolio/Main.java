@@ -11,7 +11,6 @@ import java.awt.*;
 
 public class Main {
 
-    // 색상 상수 (앱 전체 다크 테마)
     private static final Color BG_MAIN = new Color(30, 30, 46);
     private static final Color BG_TAB = new Color(45, 45, 65);
     private static final Color BG_TAB_SELECTED = new Color(60, 60, 90);
@@ -20,10 +19,8 @@ public class Main {
     private static final Color ACCENT_BLUE = new Color(100, 149, 237);
 
     public static void main(String[] args) {
-        // Swing UI는 EDT(Event Dispatch Thread)에서 실행
         SwingUtilities.invokeLater(() -> {
             try {
-                // 시스템 룩앤필 적용
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
             } catch (Exception e) {
                 e.printStackTrace();
@@ -33,9 +30,8 @@ public class Main {
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.setSize(1280, 800);
             frame.setMinimumSize(new Dimension(900, 650));
-            frame.setLocationRelativeTo(null); // 화면 중앙에 배치
+            frame.setLocationRelativeTo(null);
 
-            // 탭 패널 구성
             JTabbedPane tabbedPane = createStyledTabbedPane();
             DashboardPanel dashboardPanel = new DashboardPanel();
             tabbedPane.addTab("  📊 대시보드  ", dashboardPanel);
@@ -43,7 +39,6 @@ public class Main {
             tabbedPane.addTab("  📈 수익 분석  ", new ProfitAnalysisPanel());
             tabbedPane.addTab("  🎯 목표 수익률  ", new GoalManagementPanel());
 
-            // 대시보드 탭으로 전환 시 자동 데이터 갱신
             tabbedPane.addChangeListener(e -> {
                 if (tabbedPane.getSelectedIndex() == 0) {
                     dashboardPanel.refreshData();
@@ -55,9 +50,6 @@ public class Main {
         });
     }
 
-    /**
-     * 다크 테마 스타일의 탭 패널 생성
-     */
     private static JTabbedPane createStyledTabbedPane() {
         JTabbedPane tabbedPane = new JTabbedPane(JTabbedPane.TOP);
         tabbedPane.setBackground(BG_MAIN);
@@ -80,15 +72,9 @@ public class Main {
                                                int w, int h, boolean isSelected) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                if (isSelected) {
-                    g2.setColor(BG_TAB_SELECTED);
-                } else {
-                    g2.setColor(BG_TAB);
-                }
+                g2.setColor(isSelected ? BG_TAB_SELECTED : BG_TAB);
                 g2.fillRoundRect(x + 2, y + 2, w - 4, h - 2, 12, 12);
 
-                // 선택된 탭 하단 액센트 라인
                 if (isSelected) {
                     g2.setColor(ACCENT_BLUE);
                     g2.fillRect(x + 8, y + h - 3, w - 16, 3);
@@ -100,12 +86,10 @@ public class Main {
             protected void paintTabBorder(Graphics g, int tabPlacement,
                                            int tabIndex, int x, int y,
                                            int w, int h, boolean isSelected) {
-                // 탭 테두리 제거
             }
 
             @Override
             protected void paintContentBorder(Graphics g, int tabPlacement, int selectedIndex) {
-                // 콘텐츠 테두리 제거
             }
 
             @Override
@@ -113,7 +97,6 @@ public class Main {
                                                 Rectangle[] rects, int tabIndex,
                                                 Rectangle iconRect, Rectangle textRect,
                                                 boolean isSelected) {
-                // 포커스 인디케이터 제거
             }
 
             @Override

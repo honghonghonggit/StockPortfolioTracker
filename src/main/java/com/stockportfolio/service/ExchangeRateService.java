@@ -8,27 +8,15 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
-/**
- * exchangerate-api.com을 통한 실시간 환율 조회 서비스
- * - USD/KRW 환율 조회
- * - 조회 실패 시 기본값 1350원 fallback
- */
 public class ExchangeRateService {
 
     private static final String BASE_URL = "https://open.er-api.com/v6/latest/USD";
     private static final double DEFAULT_RATE = 1350.0;
 
-    /**
-     * 환율 조회 결과 콜백
-     */
     public interface RateCallback {
         void onResult(double usdToKrw, boolean isLive);
     }
 
-    /**
-     * USD → KRW 환율을 비동기로 조회
-     * 실패 시 기본값 1350원으로 fallback
-     */
     public void fetchUsdKrw(RateCallback callback) {
         new Thread(() -> {
             try {
@@ -71,9 +59,6 @@ public class ExchangeRateService {
         }).start();
     }
 
-    /**
-     * 기본 환율 반환
-     */
     public static double getDefaultRate() {
         return DEFAULT_RATE;
     }

@@ -17,15 +17,9 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 종목 관리 패널
- * - 왼쪽: 입력 폼 (종목명, 매수가, 보유수량) + 추가/수정/삭제 버튼
- * - 오른쪽: 등록된 종목 테이블
- * - CSV 파일 저장/불러오기 연동
- */
 public class StockManagementPanel extends JPanel {
 
-    // ── 색상 상수 (DashboardPanel과 통일) ──
+
     private static final Color BG_MAIN = new Color(30, 30, 46);
     private static final Color BG_CARD = new Color(45, 45, 65);
     private static final Color BG_TABLE = new Color(40, 40, 58);
@@ -41,16 +35,16 @@ public class StockManagementPanel extends JPanel {
 
     private final DecimalFormat moneyFormat = new DecimalFormat("#,##0");
 
-    // 서비스
+
     private final CsvService csvService;
     private final ApiService apiService;
     private final ExchangeRateService exchangeRateService;
 
-    // 데이터
+
     private final List<Stock> stockList;
     private double usdToKrw = ExchangeRateService.getDefaultRate();
 
-    // UI 컴포넌트
+
     private JTextField nameField;
     private JTextField priceField;
     private JTextField quantityField;
@@ -77,9 +71,7 @@ public class StockManagementPanel extends JPanel {
         });
     }
 
-    // ──────────────────────────────────────────────
-    // CSV 로드/저장
-    // ──────────────────────────────────────────────
+
 
     private void loadFromCsv() {
         try {
@@ -104,7 +96,7 @@ public class StockManagementPanel extends JPanel {
             statusLabel.setText(message);
             statusLabel.setForeground(color);
 
-            // 3초 후 상태 메시지 초기화
+
             Timer timer = new Timer(3000, evt -> {
                 statusLabel.setText(" ");
                 statusLabel.setForeground(TEXT_SECONDARY);
@@ -114,19 +106,17 @@ public class StockManagementPanel extends JPanel {
         }
     }
 
-    // ──────────────────────────────────────────────
-    // UI 초기화
-    // ──────────────────────────────────────────────
+
 
     private void initUI() {
         setLayout(new BorderLayout(16, 16));
         setBackground(BG_MAIN);
         setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        // 상단: 제목 + 상태 바
+
         add(createHeaderPanel(), BorderLayout.NORTH);
 
-        // 중앙: 입력 폼(왼쪽) + 테이블(오른쪽)
+
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
                 createFormPanel(), createTablePanel());
         splitPane.setDividerLocation(340);
@@ -138,9 +128,7 @@ public class StockManagementPanel extends JPanel {
         add(splitPane, BorderLayout.CENTER);
     }
 
-    // ──────────────────────────────────────────────
-    // 상단 헤더
-    // ──────────────────────────────────────────────
+
 
     private JPanel createHeaderPanel() {
         JPanel panel = new JPanel(new BorderLayout()) {
@@ -172,9 +160,7 @@ public class StockManagementPanel extends JPanel {
         return panel;
     }
 
-    // ──────────────────────────────────────────────
-    // 왼쪽: 입력 폼 + 버튼
-    // ──────────────────────────────────────────────
+
 
     private JPanel createFormPanel() {
         JPanel wrapper = new JPanel(new BorderLayout()) {
@@ -195,7 +181,7 @@ public class StockManagementPanel extends JPanel {
         formContent.setLayout(new BoxLayout(formContent, BoxLayout.Y_AXIS));
         formContent.setOpaque(false);
 
-        // 섹션 제목
+
         JLabel sectionTitle = new JLabel("종목 정보 입력");
         sectionTitle.setFont(new Font("맑은 고딕", Font.BOLD, 15));
         sectionTitle.setForeground(TEXT_PRIMARY);
@@ -203,27 +189,22 @@ public class StockManagementPanel extends JPanel {
         formContent.add(sectionTitle);
         formContent.add(Box.createVerticalStrut(20));
 
-        // 통화 선택 라디오 버튼
         formContent.add(createCurrencyRadioGroup());
         formContent.add(Box.createVerticalStrut(14));
 
-        // 종목명
         nameField = createStyledTextField();
         formContent.add(createFieldGroup("종목명", nameField));
         formContent.add(Box.createVerticalStrut(14));
 
-        // 매수가
         priceField = createStyledTextField();
         priceLabel = new JLabel("매수가 (원)");
         formContent.add(createFieldGroupWithLabel(priceLabel, priceField));
         formContent.add(Box.createVerticalStrut(14));
 
-        // 보유수량
         quantityField = createStyledTextField();
         formContent.add(createFieldGroup("보유수량 (주)", quantityField));
         formContent.add(Box.createVerticalStrut(28));
 
-        // 버튼 그룹
         formContent.add(createButtonGroup());
         formContent.add(Box.createVerticalGlue());
 
@@ -231,9 +212,7 @@ public class StockManagementPanel extends JPanel {
         return wrapper;
     }
 
-    /**
-     * 통화 선택 라디오 버튼 그룹
-     */
+
     private JPanel createCurrencyRadioGroup() {
         JPanel group = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         group.setOpaque(false);
@@ -261,7 +240,7 @@ public class StockManagementPanel extends JPanel {
         bg.add(krwRadio);
         bg.add(usdRadio);
 
-        // 통화 변경 시 매수가 라벨 업데이트
+
         krwRadio.addActionListener(e -> { if (priceLabel != null) priceLabel.setText("매수가 (원)"); });
         usdRadio.addActionListener(e -> { if (priceLabel != null) priceLabel.setText("매수가 ($)"); });
 
@@ -273,9 +252,7 @@ public class StockManagementPanel extends JPanel {
         return group;
     }
 
-    /**
-     * 라벨 + 텍스트필드 그룹
-     */
+
     private JPanel createFieldGroup(String labelText, JTextField textField) {
         JPanel group = new JPanel();
         group.setLayout(new BoxLayout(group, BoxLayout.Y_AXIS));
@@ -297,9 +274,7 @@ public class StockManagementPanel extends JPanel {
         return group;
     }
 
-    /**
-     * 라벨 객체를 직접 전달받는 필드 그룹 (동적 라벨 변경용)
-     */
+
     private JPanel createFieldGroupWithLabel(JLabel label, JTextField textField) {
         JPanel group = new JPanel();
         group.setLayout(new BoxLayout(group, BoxLayout.Y_AXIS));
@@ -318,9 +293,7 @@ public class StockManagementPanel extends JPanel {
         return group;
     }
 
-    /**
-     * 스타일링된 텍스트 필드
-     */
+
     private JTextField createStyledTextField() {
         JTextField field = new JTextField() {
             @Override
@@ -352,7 +325,7 @@ public class StockManagementPanel extends JPanel {
         field.setPreferredSize(new Dimension(0, 38));
         field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
 
-        // 포커스 시 테두리 갱신
+
         field.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) { field.repaint(); }
@@ -363,9 +336,7 @@ public class StockManagementPanel extends JPanel {
         return field;
     }
 
-    /**
-     * 버튼 그룹 (추가 / 수정 / 삭제)
-     */
+
     private JPanel createButtonGroup() {
         JPanel btnPanel = new JPanel(new GridLayout(2, 2, 10, 10));
         btnPanel.setOpaque(false);
@@ -390,9 +361,7 @@ public class StockManagementPanel extends JPanel {
         return btnPanel;
     }
 
-    /**
-     * 스타일링된 버튼
-     */
+
     private JButton createStyledButton(String text, Color color) {
         JButton btn = new JButton(text) {
             private boolean hovered = false;
@@ -431,9 +400,7 @@ public class StockManagementPanel extends JPanel {
         return btn;
     }
 
-    // ──────────────────────────────────────────────
-    // 오른쪽: 종목 테이블
-    // ──────────────────────────────────────────────
+
 
     private JPanel createTablePanel() {
         JPanel wrapper = new JPanel(new BorderLayout()) {
@@ -450,14 +417,14 @@ public class StockManagementPanel extends JPanel {
         wrapper.setOpaque(false);
         wrapper.setBorder(new EmptyBorder(16, 16, 16, 16));
 
-        // 섹션 제목
+
         JLabel sectionTitle = new JLabel("  등록된 종목 목록");
         sectionTitle.setFont(new Font("맑은 고딕", Font.BOLD, 15));
         sectionTitle.setForeground(TEXT_PRIMARY);
         sectionTitle.setBorder(new EmptyBorder(0, 0, 12, 0));
         wrapper.add(sectionTitle, BorderLayout.NORTH);
 
-        // 테이블 구성
+
         String[] columns = {"종목명", "매수가", "현재가", "수익률", "보유수량"};
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
@@ -471,7 +438,7 @@ public class StockManagementPanel extends JPanel {
         table = new JTable(tableModel);
         styleTable(table);
 
-        // 행 선택 시 입력 폼에 데이터 채우기
+
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 int row = table.getSelectedRow();
@@ -489,7 +456,7 @@ public class StockManagementPanel extends JPanel {
         scrollPane.getViewport().setBackground(BG_CARD);
         wrapper.add(scrollPane, BorderLayout.CENTER);
 
-        // 하단: 종목 수 표시
+
         JLabel countLabel = new JLabel(" ");
         countLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
         countLabel.setForeground(TEXT_SECONDARY);
@@ -497,7 +464,7 @@ public class StockManagementPanel extends JPanel {
         updateCountLabel(countLabel);
         wrapper.add(countLabel, BorderLayout.SOUTH);
 
-        // tableModel 변경 시 카운트 업데이트
+
         tableModel.addTableModelListener(e -> updateCountLabel(countLabel));
 
         return wrapper;
@@ -507,9 +474,7 @@ public class StockManagementPanel extends JPanel {
         label.setText("총 " + stockList.size() + "개 종목 등록됨");
     }
 
-    /**
-     * 테이블 데이터 갱신
-     */
+
     private void refreshTable() {
         tableModel.setRowCount(0);
         for (Stock s : stockList) {
@@ -541,9 +506,7 @@ public class StockManagementPanel extends JPanel {
         }
     }
 
-    /**
-     * 테이블 스타일 적용
-     */
+
     private void styleTable(JTable table) {
         table.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
         table.setRowHeight(40);
@@ -557,7 +520,7 @@ public class StockManagementPanel extends JPanel {
         table.setIntercellSpacing(new Dimension(0, 1));
         table.setFillsViewportHeight(true);
 
-        // 헤더 스타일
+
         JTableHeader header = table.getTableHeader();
         header.setFont(new Font("맑은 고딕", Font.BOLD, 13));
         header.setBackground(BG_TABLE);
@@ -566,7 +529,7 @@ public class StockManagementPanel extends JPanel {
         header.setReorderingAllowed(false);
         header.setPreferredSize(new Dimension(0, 40));
 
-        // 종목명: 왼쪽 정렬
+
         DefaultTableCellRenderer leftRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable tbl, Object value,
@@ -581,7 +544,7 @@ public class StockManagementPanel extends JPanel {
             }
         };
 
-        // 숫자: 오른쪽 정렬
+
         DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable tbl, Object value,
@@ -596,7 +559,7 @@ public class StockManagementPanel extends JPanel {
             }
         };
 
-        // 수익률 컬럼 색상 렌더러
+
         DefaultTableCellRenderer rateRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable tbl, Object value,
@@ -621,18 +584,14 @@ public class StockManagementPanel extends JPanel {
         table.getColumnModel().getColumn(4).setCellRenderer(rightRenderer);
     }
 
-    // ──────────────────────────────────────────────
-    // CRUD 핸들러
-    // ──────────────────────────────────────────────
 
-    /**
-     * 추가 처리
-     */
+
+
     private void handleAdd() {
         Stock stock = parseInput();
         if (stock == null) return;
 
-        // 중복 종목명 체크
+
         for (Stock s : stockList) {
             if (s.getName().equals(stock.getName())) {
                 setStatus("⚠ 이미 등록된 종목입니다: " + stock.getName(), ACCENT_AMBER);
@@ -642,7 +601,7 @@ public class StockManagementPanel extends JPanel {
 
         stockList.add(stock);
 
-        // USD 종목이면 Alpha Vantage API로 현재가 자동 조회
+
         if (stock.isUsd()) {
             setStatus("🔄 " + stock.getName() + " 현재가 조회 중...", ACCENT_BLUE);
             apiService.fetchCurrentPrice(stock.getName(), stock.getName(), new ApiService.ApiCallback() {
@@ -675,9 +634,7 @@ public class StockManagementPanel extends JPanel {
         }
     }
 
-    /**
-     * 수정 처리
-     */
+
     private void handleEdit() {
         int row = table.getSelectedRow();
         if (row < 0) {
@@ -701,9 +658,7 @@ public class StockManagementPanel extends JPanel {
         setStatus("✓ 종목 수정됨: " + existing.getName(), ACCENT_GREEN);
     }
 
-    /**
-     * 삭제 처리
-     */
+
     private void handleDelete() {
         int row = table.getSelectedRow();
         if (row < 0) {
@@ -728,9 +683,7 @@ public class StockManagementPanel extends JPanel {
         }
     }
 
-    /**
-     * 입력값 파싱 & 유효성 검증
-     */
+
     private Stock parseInput() {
         String name = nameField.getText().trim();
         String priceStr = priceField.getText().trim();
@@ -768,9 +721,7 @@ public class StockManagementPanel extends JPanel {
         return stock;
     }
 
-    /**
-     * 입력 필드 초기화
-     */
+
     private void clearFields() {
         nameField.setText("");
         priceField.setText("");
@@ -780,22 +731,14 @@ public class StockManagementPanel extends JPanel {
         nameField.requestFocus();
     }
 
-    // ──────────────────────────────────────────────
-    // Alpha Vantage 현재가 조회
-    // ──────────────────────────────────────────────
 
-    /**
-     * 현재가 조회 버튼 핸들러
-     * - 종목명을 심볼로 변환 후 현재가를 비동기 조회
-     * - 로딩 표시 + 에러 메시지 처리
-     */
     private void handleFetchPrice(JButton fetchBtn) {
         if (stockList.isEmpty()) {
             setStatus("⚠ 등록된 종목이 없습니다", ACCENT_AMBER);
             return;
         }
 
-        // 로딩 상태 표시
+
         fetchBtn.setEnabled(false);
         fetchBtn.setText("⏳ 조회 중...");
         setStatus("🔄 현재가를 조회하고 있습니다... (" + stockList.size() + "개 종목)", ACCENT_BLUE);
@@ -806,7 +749,7 @@ public class StockManagementPanel extends JPanel {
         final int[] failCount = {0};
 
         for (Stock stock : stockList) {
-            String symbol = stock.getName(); // 종목명을 심볼로 사용
+            String symbol = stock.getName();
 
             apiService.fetchCurrentPrice(symbol, stock.getName(), new ApiService.ApiCallback() {
                 @Override
@@ -849,9 +792,7 @@ public class StockManagementPanel extends JPanel {
         }
     }
 
-    /**
-     * 외부에서 종목 리스트를 가져갈 수 있도록 (대시보드 연동 등)
-     */
+
     public List<Stock> getStockList() {
         return new ArrayList<>(stockList);
     }
